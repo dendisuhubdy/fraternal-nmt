@@ -8,9 +8,7 @@ from __future__ import division
 import torch
 import torch.nn as nn
 from torch.autograd import Variable
-
 import onmt
-
 
 class LossComputeBase(nn.Module):
     """
@@ -131,6 +129,66 @@ class NMTLossCompute(LossComputeBase):
 
         return loss, stats
 
+class NMTKappaLossCompute(LossComputeBase):
+    """
+    New NMT Kappa L2 Loss Computation.
+    """
+    def __init__(self, generator, tgt_vocab, kappa):
+        super(NMTKappaLossCompute, self).__init__(generator, tgt_vocab)
+
+        weight = torch.ones(len(tgt_vocab))
+        weight[self.padding_idx] = 0
+        self.criterion = nn.NLLLoss(weight, size_average=False)
+        self.kappa = kappa
+        # adjusted this to cross entropy loss
+        #self.criterion = nn.CrossEntropyLoss()
+
+    def make_shard_state(self, batch, output, range_, attns=None):
+        """ See base class for args description. """
+        return {
+            "output": output,
+            "target": batch.tgt[range_[0] + 1: range_[1]],
+        }
+
+    def compute_loss(self, batch, output, target):
+        """ See base class for args description. """
+        # Kappa output is model input
+        kappa_output = output
+
+        # Normal output
+        scores = self.generator(self.bottle(output))
+        scores_data = scores.data.clone()
+
+        # Kappa output
+        kappa_scores = self.generator(self.bottle(kappa_output))
+        kappa_scores_data = kappa_scores.data.clone()
+
+        # target
+        target = target.view(-1)
+        target_data = target.data.clone()
+
+        raw_loss = self.criterion(scores, target)
+        loss = None
+
+        if self.kappa is not None:
+            # we adjust the the loss to the Kappa output
+            raw_loss += self.criterion(kappa_scores, target)
+            loss = raw_loss/2
+            l2_kappa = (output - kappa_output).pow(2).mean()
+            loss += (self.kappa * l2_kappa)
+
+            # compute loss data
+            loss_data = loss.data.clone()
+
+            # compute loss statistics
+            stats = self.stats(loss_data, kappa_scores_data, target_data)
+        else:
+            # we return normal loss here
+            loss = raw_loss
+            loss_data = loss.data.clone()
+            stats = self.stats(loss_data, scores_data, target_data)
+
+        return loss, stats
 
 def filter_shard_state(state):
     for k, v in state.items():

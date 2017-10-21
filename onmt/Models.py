@@ -491,3 +491,4 @@ class RNNDecoderState(DecoderState):
                 for e in self._all]
         self.hidden = tuple(vars[:-1])
         self.input_feed = vars[-1]
+

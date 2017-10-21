@@ -15,6 +15,7 @@ from onmt.Utils import aeq, use_gpu
 import opts
 
 parser = argparse.ArgumentParser(description='train.py')
+print(parser)
 
 # opts.py
 opts.add_md_help_argument(parser)
@@ -22,6 +23,7 @@ opts.model_opts(parser)
 opts.train_opts(parser)
 
 opt = parser.parse_args()
+
 if opt.word_vec_size != -1:
     opt.src_word_vec_size = opt.word_vec_size
     opt.tgt_word_vec_size = opt.word_vec_size
@@ -49,6 +51,8 @@ if len(opt.gpuid) > 1:
     sys.stderr.write("Sorry, multigpu isn't supported yet, coming soon!\n")
     sys.exit(1)
 
+if opt.kappa:
+    print('Using Kappa L2 loss ', opt.kappa)
 
 # Set up the Crayon logging server.
 if opt.exp_host != "":
@@ -86,7 +90,6 @@ def report_func(epoch, batch, num_batches,
 
     return report_stats
 
-
 def make_train_data_iter(train_data, opt):
     """
     This returns user-defined train data iterator for the trainer
@@ -98,7 +101,6 @@ def make_train_data_iter(train_data, opt):
                 dataset=train_data, batch_size=opt.batch_size,
                 device=opt.gpuid[0] if opt.gpuid else -1,
                 repeat=False)
-
 
 def make_valid_data_iter(valid_data, opt):
     """
@@ -123,7 +125,10 @@ def make_loss_compute(model, tgt_vocab, dataset, opt):
         compute = onmt.modules.CopyGeneratorLossCompute(
             model.generator, tgt_vocab, dataset, opt.copy_attn_force)
     else:
-        compute = onmt.Loss.NMTLossCompute(model.generator, tgt_vocab)
+        # here we implement out own loss
+        # here is the old loss compute, we use NMTKappaLossCompute
+        # compute = onmt.Loss.NMTLossCompute(model.generator, tgt_vocab)
+        compute = onmt.Loss.NMTKappaLossCompute(model.generator, tgt_vocab, opt.kappa)
 
     if use_gpu(opt):
         compute.cuda()
@@ -224,6 +229,8 @@ def collect_features(train, fields):
 
 def build_model(model_opt, opt, fields, checkpoint):
     print('Building model...')
+    # main model is located in onmt folder 
+    # ModelConstructor.py
     model = onmt.ModelConstructor.make_base_model(model_opt, fields,
                                                   use_gpu(opt), checkpoint)
     if len(opt.gpuid) > 1:
@@ -284,6 +291,7 @@ def main():
         print(' * src feature %d size = %d' % (j, len(fields[feat].vocab)))
 
     # Build model.
+    # modification happening here for changing models
     model = build_model(model_opt, opt, fields, checkpoint)
     tally_parameters(model)
     check_save_model_path()

@@ -97,7 +97,7 @@ def model_opts(parser):
     parser.add_argument('-lambda_coverage', type=float, default=1,
                         help='Lambda value for coverage.')
     parser.add_argument('-kappa', type=float, default=0.25,
-                        help='Kappa value for L-2 regularizer.')
+                        help='kappa penalty for hidden states discrepancy (kappa = 0 means no penalty)')
 
 
 def preprocess_opts(parser):

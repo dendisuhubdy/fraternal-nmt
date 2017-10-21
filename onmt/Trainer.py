@@ -114,17 +114,12 @@ class Trainer(object):
                 tgt = tgt_outer[j: j + trunc_size]
 
                 # 2. F-prop all but generator.
+                # Comparison with line 178 at Konrad's script
                 self.model.zero_grad()
-                outputs, attns, dec_state = \
-                    self.model(src, tgt, src_lengths, dec_state)
+                outputs, attns, dec_state = self.model(src, tgt, src_lengths, dec_state)
 
                 # 3. Compute loss in shards for memory efficiency.
-                batch_stats = self.train_loss.sharded_compute_loss(
-                        batch, outputs, attns, j,
-                        trunc_size, self.shard_size)
-                print(outputs)
-                # 
-                a = a + 1
+                batch_stats = self.train_loss.sharded_compute_loss(batch, outputs, attns, j,trunc_size, self.shard_size)
 
                 # 4. Update the parameters and statistics.
                 self.optim.step()
