@@ -13,16 +13,22 @@ import onmt.ModelConstructor
 import onmt.modules
 from onmt.Utils import aeq, use_gpu
 import opts
+import numpy as np
+from visdom import Visdom
+from PIL import Image
+
+viz = Visdom(server='http://suhubdy.com', port=51401)
 
 parser = argparse.ArgumentParser(description='train.py')
-print(parser)
 
 # opts.py
 opts.add_md_help_argument(parser)
 opts.model_opts(parser)
 opts.train_opts(parser)
+print(opts)
 
 opt = parser.parse_args()
+print(opt)
 
 if opt.word_vec_size != -1:
     opt.src_word_vec_size = opt.word_vec_size
@@ -152,6 +158,67 @@ def train_model(model, train_data, valid_data, fields, optim):
     trainer = onmt.Trainer(model, train_iter, valid_iter,
                            train_loss, valid_loss, optim,
                            trunc_size, shard_size)
+    epochs_train_list = []
+    perplexity_train_list = []
+    accuracy_train_list = []
+
+    epochs_valid_list = []
+    perplexity_valid_list = []
+    accuracy_valid_list = []
+
+    # start Visdom visualization
+    win_train_perplexity = viz.line(
+            X=np.array([0]),
+            Y=np.array([0]),
+            opts=dict(title='Training Perplexity of Kappa Experiment', caption='Perplexity.')
+    )
+
+    win_train_accuracy = viz.line(
+            X=np.array([0]),
+            Y=np.array([0]),
+            opts=dict(title='Training Accuracy of Kappa Experiment', caption='Accuracy')
+    )
+
+    win_valid_perplexity = viz.line(
+            X=np.array([0]),
+            Y=np.array([0]),
+            opts=dict(title='Validation Set Perplexity of Kappa Experiment', caption='Perplexity.')
+    )
+
+    win_valid_accuracy = viz.line(
+            X=np.array([0]),
+            Y=np.array([0]),
+            opts=dict(title='Validation Set Accuracy of Kappa Experiment', caption='Accuracy')
+    )
+
+    viz.line(
+            X=np.array([0]),
+            Y=np.array([0]),
+            win=win_train_perplexity,
+            update='append'
+            )
+
+    viz.line(
+            X=np.array([0]),
+            Y=np.array([0]),
+            win=win_train_perplexity,
+            update='append'
+            )
+
+    viz.line(
+            X=np.array([0]),
+            Y=np.array([0]),
+            win=win_valid_accuracy,
+            update='append'
+            )
+
+    viz.line(
+            X=np.array([0]),
+            Y=np.array([0]),
+            win=win_valid_perplexity,
+            update='append'
+            )
+
 
     for epoch in range(opt.start_epoch, opt.epochs + 1):
         print('')
@@ -160,11 +227,47 @@ def train_model(model, train_data, valid_data, fields, optim):
         train_stats = trainer.train(epoch, report_func)
         print('Train perplexity: %g' % train_stats.ppl())
         print('Train accuracy: %g' % train_stats.accuracy())
+        perplexity_train = train_stats.ppl()
+        accuracy_train = train_stats.accuracy()
+
+        epochs_train_list.append(epoch)
+        perplexity_train_list.append(train_stats.ppl())
+        accuracy_train_list.append(train_stats.accuracy())
 
         # 2. Validate on the validation set.
         valid_stats = trainer.validate()
         print('Validation perplexity: %g' % valid_stats.ppl())
         print('Validation accuracy: %g' % valid_stats.accuracy())
+        epochs_valid_list.append(epoch)
+        perplexity_valid_list.append(valid_stats.ppl())
+        accuracy_valid_list.append(valid_stats.accuracy())
+        perplexity_valid = valid_stats.ppl()
+        accuracy_valid = valid_stats.accuracy()
+
+        viz.updateTrace(
+                X=np.array([epoch]),
+                Y=np.array([accuracy_train]),
+                win=win_train_accuracy,
+                )
+
+        viz.updateTrace(
+                X=np.array([epoch]),
+                Y=np.array([accuracy_valid]),
+                win=win_valid_accuracy,
+                )
+
+
+        viz.updateTrace(
+                X=np.array([epoch]),
+                Y=np.array([perplexity_train]),
+                win=win_train_perplexity,
+                )
+
+        viz.updateTrace(
+                X=np.array([epoch]),
+                Y=np.array([perplexity_valid]),
+                win=win_valid_perplexity,
+                )
 
         # 3. Log to remote server.
         if opt.exp_host:

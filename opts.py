@@ -184,7 +184,7 @@ def train_opts(parser):
                         help="""Maximum batches of words in a sequence to run
                         the generator on in parallel. Higher is faster, but
                         uses more memory.""")
-    parser.add_argument('-epochs', type=int, default=13,
+    parser.add_argument('-epochs', type=int, default=40,
                         help='Number of training epochs')
     parser.add_argument('-optim', default='sgd',
                         choices=['sgd', 'adagrad', 'adadelta', 'adam'],

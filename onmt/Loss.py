@@ -48,24 +48,24 @@ class LossComputeBase(nn.Module):
         """
         return NotImplementedError
 
-    def monolithic_compute_loss(self, batch, output, attns):
+    def monolithic_compute_loss(self, batch, output, kappa_output, attns):
         """
         Compute the loss monolithically, not dividing into shards.
         """
         range_ = (0, batch.tgt.size(0))
-        shard_state = self.make_shard_state(batch, output, range_, attns)
+        shard_state = self.make_shard_state(batch, output, kappa_output, range_, attns)
         _, batch_stats = self.compute_loss(batch, **shard_state)
 
         return batch_stats
 
-    def sharded_compute_loss(self, batch, output, attns,
+    def sharded_compute_loss(self, batch, output, kappa_output, attns,
                              cur_trunc, trunc_size, shard_size):
         """
         Compute the loss in shards for efficiency.
         """
         batch_stats = onmt.Statistics()
         range_ = (cur_trunc, cur_trunc + trunc_size)
-        shard_state = self.make_shard_state(batch, output, range_, attns)
+        shard_state = self.make_shard_state(batch, output, kappa_output, range_, attns)
 
         for shard in shards(shard_state, shard_size):
             loss, stats = self.compute_loss(batch, **shard)
@@ -143,18 +143,16 @@ class NMTKappaLossCompute(LossComputeBase):
         # adjusted this to cross entropy loss
         #self.criterion = nn.CrossEntropyLoss()
 
-    def make_shard_state(self, batch, output, range_, attns=None):
+    def make_shard_state(self, batch, output, kappa_output, range_, attns=None):
         """ See base class for args description. """
         return {
             "output": output,
+            "kappa_output": kappa_output,
             "target": batch.tgt[range_[0] + 1: range_[1]],
         }
 
-    def compute_loss(self, batch, output, target):
+    def compute_loss(self, batch, output, kappa_output, target):
         """ See base class for args description. """
-        # Kappa output is model input
-        kappa_output = output
-
         # Normal output
         scores = self.generator(self.bottle(output))
         scores_data = scores.data.clone()

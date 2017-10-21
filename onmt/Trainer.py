@@ -116,10 +116,14 @@ class Trainer(object):
                 # 2. F-prop all but generator.
                 # Comparison with line 178 at Konrad's script
                 self.model.zero_grad()
+
+                # compute the first output
                 outputs, attns, dec_state = self.model(src, tgt, src_lengths, dec_state)
+                # recompute kappa with different dropout here
+                kappa_outputs, attns, dec_state = self.model(src, tgt, src_lengths, dec_state)
 
                 # 3. Compute loss in shards for memory efficiency.
-                batch_stats = self.train_loss.sharded_compute_loss(batch, outputs, attns, j,trunc_size, self.shard_size)
+                batch_stats = self.train_loss.sharded_compute_loss(batch, outputs, kappa_outputs, attns, j,trunc_size, self.shard_size)
 
                 # 4. Update the parameters and statistics.
                 self.optim.step()
@@ -151,10 +155,10 @@ class Trainer(object):
 
             # F-prop through the model.
             outputs, attns, _ = self.model(src, tgt, src_lengths)
+            kappa_outputs, attns, _ = self.model(src, tgt, src_lengths)
 
             # Compute loss.
-            batch_stats = self.valid_loss.monolithic_compute_loss(
-                    batch, outputs, attns)
+            batch_stats = self.valid_loss.monolithic_compute_loss(batch, outputs, kappa_outputs, attns)
 
             # Update statistics.
             stats.update(batch_stats)
