@@ -367,7 +367,8 @@ class InputFeedRNNDecoder(RNNDecoderBase):
         assert not rnn_type == "SRU", "SRU doesn't support input feed! " \
                 "Please set -input_feed 0!"
         if rnn_type == "LSTM":
-            stacked_cell = onmt.modules.StackedLSTM
+            stacked_cell = onmt.modules.StackedLSTMWDropout
+            #stacked_cell = onmt.modules.StackedLSTM
         else:
             stacked_cell = onmt.modules.StackedGRU
         return stacked_cell(num_layers, input_size,
@@ -414,6 +415,7 @@ class NMTModel(nn.Module):
         """
         src = src
         tgt = tgt[:-1]  # exclude last target from inputs
+
         enc_hidden, context = self.encoder(src, lengths)
         enc_state = self.decoder.init_decoder_state(src, context, enc_hidden)
         out, dec_state, attns = self.decoder(tgt, context,

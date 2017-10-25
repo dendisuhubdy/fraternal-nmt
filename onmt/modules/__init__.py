@@ -9,7 +9,7 @@ from onmt.modules.StructuredAttention import MatrixTree
 from onmt.modules.Transformer import TransformerEncoder, TransformerDecoder
 from onmt.modules.Conv2Conv import CNNEncoder, CNNDecoder
 from onmt.modules.MultiHeadedAttn import MultiHeadedAttention
-from onmt.modules.StackedRNN import StackedLSTM, StackedGRU
+from onmt.modules.StackedRNN import StackedLSTM, StackedGRU, StackedLSTMWDropout
 from onmt.modules.Embeddings import Embeddings
 from onmt.modules.WeightNorm import WeightNormConv2d
 

@@ -166,24 +166,21 @@ class NMTKappaLossCompute(LossComputeBase):
         target_data = target.data.clone()
 
         raw_loss = self.criterion(scores, target)
-        loss = None
+        # compute loss data
+        loss_data = raw_loss.data.clone()
+        loss = raw_loss
 
         if self.kappa is not None:
             # we adjust the the loss to the Kappa output
-            raw_loss += self.criterion(kappa_scores, target)
-            loss = raw_loss/2
+            loss += self.criterion(kappa_scores, target)
+            loss = loss/2
             l2_kappa = (output - kappa_output).pow(2).mean()
             loss += (self.kappa * l2_kappa)
-
-            # compute loss data
-            loss_data = loss.data.clone()
 
             # compute loss statistics
             stats = self.stats(loss_data, kappa_scores_data, target_data)
         else:
             # we return normal loss here
-            loss = raw_loss
-            loss_data = loss.data.clone()
             stats = self.stats(loss_data, scores_data, target_data)
 
         return loss, stats

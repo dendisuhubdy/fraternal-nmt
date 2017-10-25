@@ -120,7 +120,7 @@ class Trainer(object):
                 # compute the first output
                 outputs, attns, dec_state = self.model(src, tgt, src_lengths, dec_state)
                 # recompute kappa with different dropout here
-                kappa_outputs, attns, dec_state = self.model(src, tgt, src_lengths, dec_state)
+                kappa_outputs, _, _ = self.model(src, tgt, src_lengths)
 
                 # 3. Compute loss in shards for memory efficiency.
                 batch_stats = self.train_loss.sharded_compute_loss(batch, outputs, kappa_outputs, attns, j,trunc_size, self.shard_size)

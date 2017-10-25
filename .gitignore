@@ -109,5 +109,6 @@ data/
 *.pth
 *.pt
 *.txt
+translations/*
 # mypy
 .mypy_cache/
