@@ -1,6 +1,13 @@
 import argparse
 from onmt.modules.SRU import CheckSRU
 
+def str2bool(v):
+    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')
 
 def model_opts(parser):
     """
@@ -62,6 +69,9 @@ def model_opts(parser):
                         help="""Feed the context vector at each time step as
                         additional input (via concatenation with the word
                         embeddings) to the decoder.""")
+    parser.add_argument('-weightdropout', type=str2bool, nargs='?', 
+                        const=True, default=False,
+                        help='Activating weightdropout')
 
     parser.add_argument('-rnn_type', type=str, default='LSTM',
                         choices=['LSTM', 'GRU', 'SRU'],
@@ -96,8 +106,10 @@ def model_opts(parser):
                         help='Train a coverage attention layer.')
     parser.add_argument('-lambda_coverage', type=float, default=1,
                         help='Lambda value for coverage.')
-    parser.add_argument('-kappa', type=float, default=0.25,
-                        help='kappa penalty for hidden states discrepancy (kappa = 0 means no penalty)')
+    parser.add_argument('-kappa_enc', type=float, default=0.15,
+                        help='kappa penalty for hidden states discrepancy on encoder (kappa = 0 means no penalty)')
+    parser.add_argument('-kappa_dec', type=float, default=0.15,
+                        help='kappa penalty for hidden states discrepancy on decoder (kappa = 0 means no penalty)')
 
 
 def preprocess_opts(parser):
@@ -184,7 +196,7 @@ def train_opts(parser):
                         help="""Maximum batches of words in a sequence to run
                         the generator on in parallel. Higher is faster, but
                         uses more memory.""")
-    parser.add_argument('-epochs', type=int, default=40,
+    parser.add_argument('-epochs', type=int, default=17,
                         help='Number of training epochs')
     parser.add_argument('-optim', default='sgd',
                         choices=['sgd', 'adagrad', 'adadelta', 'adam'],

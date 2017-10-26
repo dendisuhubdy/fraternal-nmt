@@ -57,8 +57,14 @@ if len(opt.gpuid) > 1:
     sys.stderr.write("Sorry, multigpu isn't supported yet, coming soon!\n")
     sys.exit(1)
 
-if opt.kappa:
-    print('Using Kappa L2 loss ', opt.kappa)
+if opt.kappa_enc:
+    print('Using Kappa L2 loss on encoder', opt.kappa_enc)
+
+if opt.kappa_dec:
+    print('Using Kappa L2 loss on decoder', opt.kappa_dec)
+
+if opt.weightdropout:
+    print('Using weight dropout', opt.weightdropout)
 
 # Set up the Crayon logging server.
 if opt.exp_host != "":
@@ -134,7 +140,7 @@ def make_loss_compute(model, tgt_vocab, dataset, opt):
         # here we implement out own loss
         # here is the old loss compute, we use NMTKappaLossCompute
         # compute = onmt.Loss.NMTLossCompute(model.generator, tgt_vocab)
-        compute = onmt.Loss.NMTKappaLossCompute(model.generator, tgt_vocab, opt.kappa)
+        compute = onmt.Loss.NMTKappaLossCompute(model.generator, tgt_vocab, opt.kappa_enc, opt.kappa_dec)
 
     if use_gpu(opt):
         compute.cuda()

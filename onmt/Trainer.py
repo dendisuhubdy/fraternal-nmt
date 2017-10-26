@@ -118,12 +118,23 @@ class Trainer(object):
                 self.model.zero_grad()
 
                 # compute the first output
-                outputs, attns, dec_state = self.model(src, tgt, src_lengths, dec_state)
+                output, attns, dec_state, encoder_output, decoder_output_wod = self.model(src, tgt, src_lengths, dec_state)
                 # recompute kappa with different dropout here
-                kappa_outputs, _, _ = self.model(src, tgt, src_lengths)
+                kappa_output, _, _, kappa_encoder_output, kappa_decoder_output_wod = self.model(src, tgt, src_lengths)
+
+                #print("decoder output starts here")
+                #print(output)
+
+                #print("decoder output without dropout here")
+                #print(decoder_output_wod)
+
+                #print((decoder_outputs - kappa_decoder_outputs).pow(2).mean())
+                #print((encoder_outputs - kappa_encoder_outputs).pow(2).mean())
+
+                # o = o + 1
 
                 # 3. Compute loss in shards for memory efficiency.
-                batch_stats = self.train_loss.sharded_compute_loss(batch, outputs, kappa_outputs, attns, j,trunc_size, self.shard_size)
+                batch_stats = self.train_loss.sharded_compute_loss(batch, output, kappa_output, attns, encoder_output, kappa_encoder_output, decoder_output_wod, kappa_decoder_output_wod, j, trunc_size, self.shard_size)
 
                 # 4. Update the parameters and statistics.
                 self.optim.step()
@@ -154,11 +165,11 @@ class Trainer(object):
             tgt = onmt.IO.make_features(batch, 'tgt')
 
             # F-prop through the model.
-            outputs, attns, _ = self.model(src, tgt, src_lengths)
-            kappa_outputs, attns, _ = self.model(src, tgt, src_lengths)
+            outputs, attns, _ , encoder_output, decoder_output_wod = self.model(src, tgt, src_lengths)
+            kappa_outputs, attns, _ , kappa_encoder_output, kappa_decoder_output_wod = self.model(src, tgt, src_lengths)
 
             # Compute loss.
-            batch_stats = self.valid_loss.monolithic_compute_loss(batch, outputs, kappa_outputs, attns)
+            batch_stats = self.valid_loss.monolithic_compute_loss(batch, outputs, kappa_outputs, attns, encoder_output, kappa_encoder_output, decoder_output_wod, kappa_decoder_output_wod)
 
             # Update statistics.
             stats.update(batch_stats)

@@ -8,7 +8,6 @@ from torch.nn.utils.rnn import pad_packed_sequence as unpack
 import onmt
 from onmt.Utils import aeq
 
-
 class EncoderBase(nn.Module):
     """
     EncoderBase class for sharing code among various encoder.
@@ -53,7 +52,7 @@ class MeanEncoder(EncoderBase):
 class RNNEncoder(EncoderBase):
     """ The standard RNN encoder. """
     def __init__(self, rnn_type, bidirectional, num_layers,
-                 hidden_size, dropout, embeddings):
+                 hidden_size, dropout, embeddings, weightdropout):
         super(RNNEncoder, self).__init__()
 
         num_directions = 2 if bidirectional else 1
@@ -61,6 +60,8 @@ class RNNEncoder(EncoderBase):
         hidden_size = hidden_size // num_directions
         self.embeddings = embeddings
         self.no_pack_padded_seq = False
+        self.dropout = nn.Dropout(dropout)
+        self.weightdropout = weightdropout
 
         # Use pytorch version when available.
         if rnn_type == "SRU":
@@ -73,18 +74,42 @@ class RNNEncoder(EncoderBase):
                     dropout=dropout,
                     bidirectional=bidirectional)
         else:
-            self.rnn = getattr(nn, rnn_type)(
-                    input_size=embeddings.embedding_size,
-                    hidden_size=hidden_size,
-                    num_layers=num_layers,
-                    dropout=dropout,
-                    bidirectional=bidirectional)
+            if self.weightdropout:
+                from modules.WeightDrop import WeightDrop
+                self.rnn = getattr(nn, rnn_type)(
+                        input_size=embeddings.embedding_size,
+                        hidden_size=hidden_size,
+                        num_layers=num_layers,
+                        dropout=dropout,
+                        bidirectional=bidirectional)
+                self.rnn = WeightDrop(self.rnn, ['weight_hh_l0'], dropout=dropout)
+            else:
+                self.rnn = getattr(nn, rnn_type)(
+                        input_size=embeddings.embedding_size,
+                        hidden_size=hidden_size,
+                        num_layers=num_layers,
+                        dropout=dropout,
+                        bidirectional=bidirectional)
 
     def forward(self, input, lengths=None, hidden=None):
         """ See EncoderBase.forward() for description of args and returns."""
         self._check_args(input, lengths, hidden)
 
-        emb = self.embeddings(input)
+        # with weightdropout
+        # on the encoder
+        # we don't do
+        emb = None
+
+        if self.weightdropout:
+            emb = self.embeddings(input)
+        else:
+            emb = self.embeddings(input)
+            emb = self.dropout(emb)
+
+        #print(emb)
+
+        #o = o + 1
+
         s_len, batch, emb_dim = emb.size()
 
         packed_emb = emb
@@ -107,7 +132,7 @@ class RNNDecoderBase(nn.Module):
     """
     def __init__(self, rnn_type, bidirectional_encoder, num_layers,
                  hidden_size, attn_type, coverage_attn, context_gate,
-                 copy_attn, dropout, embeddings):
+                 copy_attn, dropout, embeddings, weightdropout):
         super(RNNDecoderBase, self).__init__()
 
         # Basic attributes.
@@ -117,6 +142,7 @@ class RNNDecoderBase(nn.Module):
         self.hidden_size = hidden_size
         self.embeddings = embeddings
         self.dropout = nn.Dropout(dropout)
+        self.weightdropout = weightdropout
 
         # Build the RNN.
         self.rnn = self._build_rnn(rnn_type, self._input_size, hidden_size,
@@ -171,7 +197,7 @@ class RNNDecoderBase(nn.Module):
         # END Args Check
 
         # Run the forward pass of the RNN.
-        hidden, outputs, attns, coverage = \
+        hidden, outputs, attns, coverage, outputs_wodropout = \
             self._run_forward_pass(input, context, state)
 
         # Update the state with the result.
@@ -185,7 +211,7 @@ class RNNDecoderBase(nn.Module):
         for k in attns:
             attns[k] = torch.stack(attns[k])
 
-        return outputs, state, attns
+        return outputs, state, attns, outputs_wodropout
 
     def _fix_enc_hidden(self, h):
         """
@@ -315,6 +341,7 @@ class InputFeedRNNDecoder(RNNDecoderBase):
 
         # Initialize local and return variables.
         outputs = []
+        decoder_outputs = []
         attns = {"std": []}
         if self._copy:
             attns["copy"] = []
@@ -330,21 +357,31 @@ class InputFeedRNNDecoder(RNNDecoderBase):
 
         # Input feed concatenates hidden state with
         # input at every time step.
+
         for i, emb_t in enumerate(emb.split(1)):
             emb_t = emb_t.squeeze(0)
             emb_t = torch.cat([emb_t, output], 1)
 
             rnn_output, hidden = self.rnn(emb_t, hidden)
+
             attn_output, attn = self.attn(rnn_output,
                                           context.transpose(0, 1))
             if self.context_gate is not None:
                 output = self.context_gate(
                     emb_t, rnn_output, attn_output
                 )
+                decoder_output = output
                 output = self.dropout(output)
             else:
+                # usually we do not use any context gate
+                # so this line is called
                 output = self.dropout(attn_output)
+
+                decoder_output = attn_output
+
+            decoder_outputs += [decoder_output]
             outputs += [output]
+
             attns["std"] += [attn]
 
             # Update the coverage attention.
@@ -359,16 +396,21 @@ class InputFeedRNNDecoder(RNNDecoderBase):
                                               context.transpose(0, 1))
                 attns["copy"] += [copy_attn]
 
-        # Return result.
-        return hidden, outputs, attns, coverage
+        # Return result
+        # convert them to stack
+        decoder_outputs = torch.stack(decoder_outputs, dim=0)
+
+        return hidden, outputs, attns, coverage, decoder_outputs
 
     def _build_rnn(self, rnn_type, input_size,
                    hidden_size, num_layers, dropout):
         assert not rnn_type == "SRU", "SRU doesn't support input feed! " \
                 "Please set -input_feed 0!"
         if rnn_type == "LSTM":
-            stacked_cell = onmt.modules.StackedLSTMWDropout
-            #stacked_cell = onmt.modules.StackedLSTM
+            if self.weightdropout:
+                stacked_cell = onmt.modules.StackedLSTMWDropout
+            else:
+                stacked_cell = onmt.modules.StackedLSTM
         else:
             stacked_cell = onmt.modules.StackedGRU
         return stacked_cell(num_layers, input_size,
@@ -418,14 +460,16 @@ class NMTModel(nn.Module):
 
         enc_hidden, context = self.encoder(src, lengths)
         enc_state = self.decoder.init_decoder_state(src, context, enc_hidden)
-        out, dec_state, attns = self.decoder(tgt, context,
+        out, dec_state, attns , out_wodropout = self.decoder(tgt, context,
                                              enc_state if dec_state is None
                                              else dec_state)
         if self.multigpu:
             # Not yet supported on multi-gpu
             dec_state = None
             attns = None
-        return out, attns, dec_state
+
+        encoder_output = context
+        return out, attns, dec_state, encoder_output, out_wodropout
 
 
 class DecoderState(object):

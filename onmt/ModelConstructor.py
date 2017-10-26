@@ -68,7 +68,8 @@ def make_encoder(opt, embeddings):
     else:
         # "rnn" or "brnn"
         return RNNEncoder(opt.rnn_type, opt.brnn, opt.dec_layers,
-                          opt.rnn_size, opt.dropout, embeddings)
+                          opt.rnn_size, opt.dropout, embeddings,
+                          opt.weightdropout)
 
 
 def make_decoder(opt, embeddings):
@@ -95,7 +96,8 @@ def make_decoder(opt, embeddings):
                                    opt.context_gate,
                                    opt.copy_attn,
                                    opt.dropout,
-                                   embeddings)
+                                   embeddings,
+                                   opt.weightdropout)
     else:
         return StdRNNDecoder(opt.rnn_type, opt.brnn,
                              opt.dec_layers, opt.rnn_size,
@@ -104,8 +106,8 @@ def make_decoder(opt, embeddings):
                              opt.context_gate,
                              opt.copy_attn,
                              opt.dropout,
-                             embeddings)
-
+                             embeddings,
+                             opt.weightdropout)
 
 def make_base_model(model_opt, fields, gpu, checkpoint=None):
     """

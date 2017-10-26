@@ -105,10 +105,12 @@ ENV/
 # mkdocs documentation
 /site
 data/
+models/
 
 *.pth
 *.pt
 *.txt
+*.out
 translations/*
 # mypy
 .mypy_cache/
