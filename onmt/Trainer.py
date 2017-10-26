@@ -117,13 +117,12 @@ class Trainer(object):
                 # Comparison with line 178 at Konrad's script
                 self.model.zero_grad()
 
-                # compute the first output
-                outputs, attns, dec_state = self.model(src, tgt, src_lengths, dec_state)
-                # recompute kappa with different dropout here
-                kappa_outputs, _, _ = self.model(src, tgt, src_lengths)
+                # compute the output
+                outputs, attns, dec_state, encoder_out = self.model(src, tgt, src_lengths, dec_state)
+                kappa_outputs, kappa_attns, kappa_dec_state, kappa_encoder_out = self.model(src, tgt, src_lengths, dec_state)
 
                 # 3. Compute loss in shards for memory efficiency.
-                batch_stats = self.train_loss.sharded_compute_loss(batch, outputs, kappa_outputs, attns, j,trunc_size, self.shard_size)
+                batch_stats = self.train_loss.sharded_compute_loss(batch, outputs, kappa_outputs, encoder_out, kappa_encoder_out, attns, kappa_attns, j ,trunc_size, self.shard_size)
 
                 # 4. Update the parameters and statistics.
                 self.optim.step()
@@ -131,8 +130,9 @@ class Trainer(object):
                 report_stats.update(batch_stats)
 
                 # If truncated, don't backprop fully.
-                if dec_state is not None:
+                if dec_state and kappa_dec_state is not None:
                     dec_state.detach()
+                    kappa_dec_state.detach()
 
             if report_func is not None:
                 report_stats = report_func(
@@ -154,11 +154,11 @@ class Trainer(object):
             tgt = onmt.IO.make_features(batch, 'tgt')
 
             # F-prop through the model.
-            outputs, attns, _ = self.model(src, tgt, src_lengths)
-            kappa_outputs, attns, _ = self.model(src, tgt, src_lengths)
+            outputs, _, attns, _, _, _ = self.model(src, tgt, src_lengths)
+            kappa_outputs, _, kappa_attns, _, _, _ = self.model(src, tgt, src_lengths)
 
             # Compute loss.
-            batch_stats = self.valid_loss.monolithic_compute_loss(batch, outputs, kappa_outputs, attns)
+            batch_stats = self.valid_loss.monolithic_compute_loss(batch, outputs, kappa_outputs, attns, kappa_attns)
 
             # Update statistics.
             stats.update(batch_stats)

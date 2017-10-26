@@ -61,6 +61,7 @@ class GlobalAttention(nn.Module):
         self.tanh = nn.Tanh()
         self.mask = None
 
+        #o = o + 1
         if coverage:
             self.linear_cover = nn.Linear(1, dim, bias=False)
 
@@ -111,7 +112,7 @@ class GlobalAttention(nn.Module):
         context (FloatTensor): batch x src_len x dim: src hidden states
         coverage (FloatTensor): None (not supported yet)
         """
-
+        #o = o + 1
         # one step input
         if input.dim() == 2:
             one_step = True

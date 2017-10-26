@@ -20,6 +20,7 @@ from PIL import Image
 viz = Visdom(server='http://suhubdy.com', port=51401)
 
 parser = argparse.ArgumentParser(description='train.py')
+print(parser)
 
 # opts.py
 opts.add_md_help_argument(parser)
@@ -59,6 +60,12 @@ if len(opt.gpuid) > 1:
 
 if opt.kappa:
     print('Using Kappa L2 loss ', opt.kappa)
+
+if opt.weightdropout:
+    print('Using weightdropout', opt.weightdropout)
+
+if opt.dual_encoder:
+    print('Using Dual Encoder ', opt.dual_encoder)
 
 # Set up the Crayon logging server.
 if opt.exp_host != "":
@@ -154,6 +161,7 @@ def train_model(model, train_data, valid_data, fields, optim):
 
     trunc_size = opt.truncated_decoder  # Badly named...
     shard_size = opt.max_generator_batches
+
 
     trainer = onmt.Trainer(model, train_iter, valid_iter,
                            train_loss, valid_loss, optim,

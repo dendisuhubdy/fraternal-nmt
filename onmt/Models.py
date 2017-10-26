@@ -105,7 +105,7 @@ class RNNDecoderBase(nn.Module):
     """
     RNN decoder base class.
     """
-    def __init__(self, rnn_type, bidirectional_encoder, num_layers,
+    def __init__(self, rnn_type, weightdropout, bidirectional_encoder, num_layers,
                  hidden_size, attn_type, coverage_attn, context_gate,
                  copy_attn, dropout, embeddings):
         super(RNNDecoderBase, self).__init__()
@@ -117,9 +117,10 @@ class RNNDecoderBase(nn.Module):
         self.hidden_size = hidden_size
         self.embeddings = embeddings
         self.dropout = nn.Dropout(dropout)
+        self.weightdropout = weightdropout
 
         # Build the RNN.
-        self.rnn = self._build_rnn(rnn_type, self._input_size, hidden_size,
+        self.rnn = self._build_rnn(rnn_type, weightdropout, self._input_size, hidden_size,
                                    num_layers, dropout)
 
         # Set up the context gate.
@@ -184,6 +185,7 @@ class RNNDecoderBase(nn.Module):
         outputs = torch.stack(outputs)
         for k in attns:
             attns[k] = torch.stack(attns[k])
+            print(attns[k])
 
         return outputs, state, attns
 
@@ -272,8 +274,7 @@ class StdRNNDecoder(RNNDecoderBase):
         # Return result.
         return hidden, outputs, attns, coverage
 
-    def _build_rnn(self, rnn_type, input_size,
-                   hidden_size, num_layers, dropout):
+    def _build_rnn(self, rnn_type, input_size, hidden_size, num_layers, dropout):
         """
         Private helper for building standard decoder RNN.
         """
@@ -362,17 +363,17 @@ class InputFeedRNNDecoder(RNNDecoderBase):
         # Return result.
         return hidden, outputs, attns, coverage
 
-    def _build_rnn(self, rnn_type, input_size,
-                   hidden_size, num_layers, dropout):
+    def _build_rnn(self, rnn_type, weightdropout, input_size, hidden_size, num_layers, dropout):
         assert not rnn_type == "SRU", "SRU doesn't support input feed! " \
                 "Please set -input_feed 0!"
         if rnn_type == "LSTM":
-            stacked_cell = onmt.modules.StackedLSTMWDropout
-            #stacked_cell = onmt.modules.StackedLSTM
+            if weightdropout:
+                stacked_cell = onmt.modules.StackedLSTMWDropout
+            else:
+                stacked_cell = onmt.modules.StackedLSTM
         else:
             stacked_cell = onmt.modules.StackedGRU
-        return stacked_cell(num_layers, input_size,
-                            hidden_size, dropout)
+        return stacked_cell(num_layers, input_size, hidden_size, dropout)
 
     @property
     def _input_size(self):
@@ -419,13 +420,15 @@ class NMTModel(nn.Module):
         enc_hidden, context = self.encoder(src, lengths)
         enc_state = self.decoder.init_decoder_state(src, context, enc_hidden)
         out, dec_state, attns = self.decoder(tgt, context,
-                                             enc_state if dec_state is None
+                                             enc_state if dec_state is None 
                                              else dec_state)
+
         if self.multigpu:
             # Not yet supported on multi-gpu
             dec_state = None
             attns = None
-        return out, attns, dec_state
+        encoder_out = context
+        return out, attns, dec_state, encoder_out
 
 
 class DecoderState(object):

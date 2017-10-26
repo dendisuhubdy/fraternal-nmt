@@ -112,6 +112,8 @@ class CopyGeneratorLossCompute(onmt.Loss.LossComputeBase):
             copy_attn: the copy attention value.
             align: the align info.
         """
+        #print("attention called")
+        #o = o + 1
         target = target.view(-1)
         align = align.view(-1)
         scores = self.generator(self.bottle(output),

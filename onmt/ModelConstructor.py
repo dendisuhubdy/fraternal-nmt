@@ -88,7 +88,9 @@ def make_decoder(opt, embeddings):
                           opt.cnn_kernel_width, opt.dropout,
                           embeddings)
     elif opt.input_feed:
-        return InputFeedRNNDecoder(opt.rnn_type, opt.brnn,
+        return InputFeedRNNDecoder(opt.rnn_type,
+                                   opt.weightdropout,
+                                   opt.brnn,
                                    opt.dec_layers, opt.rnn_size,
                                    opt.global_attention,
                                    opt.coverage_attn,
@@ -107,7 +109,7 @@ def make_decoder(opt, embeddings):
                              embeddings)
 
 
-def make_base_model(model_opt, fields, gpu, checkpoint=None):
+def make_base_model(model_opt, fields, gpu, dual_encoder, checkpoint=None):
     """
     Args:
         model_opt: the option loaded from checkpoint.
@@ -148,7 +150,7 @@ def make_base_model(model_opt, fields, gpu, checkpoint=None):
     decoder = make_decoder(model_opt, tgt_embeddings)
 
     # Make NMTModel(= encoder + decoder).
-    model = NMTModel(encoder, decoder)
+    model = NMTModel(encoder, decoder, model_opt.dual_encoder)
 
     # Make Generator.
     if not model_opt.copy_attn:

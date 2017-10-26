@@ -44,6 +44,8 @@ def model_opts(parser):
     parser.add_argument('-decoder_type', type=str, default='rnn',
                         choices=['rnn', 'transformer', 'cnn'],
                         help='Type of decoder layer to use.')
+    parser.add_argument('-dual_encoder', type=bool, default=False,
+                        help='Using dual encoder on top of Kappa penalty')
 
     parser.add_argument('-layers', type=int, default=-1,
                         help='Number of layers in enc/dec.')
@@ -184,7 +186,7 @@ def train_opts(parser):
                         help="""Maximum batches of words in a sequence to run
                         the generator on in parallel. Higher is faster, but
                         uses more memory.""")
-    parser.add_argument('-epochs', type=int, default=40,
+    parser.add_argument('-epochs', type=int, default=15,
                         help='Number of training epochs')
     parser.add_argument('-optim', default='sgd',
                         choices=['sgd', 'adagrad', 'adadelta', 'adam'],
@@ -195,6 +197,8 @@ def train_opts(parser):
                         max_grad_norm""")
     parser.add_argument('-dropout', type=float, default=0.3,
                         help="Dropout probability; applied in LSTM stacks.")
+    parser.add_argument('-weightdropout', type=bool, default=False,
+                        help="Apply weight dropout to LSTM Cell Stack on Decoder")
     parser.add_argument('-truncated_decoder', type=int, default=0,
                         help="""Truncated bptt.""")
     # learning rate

@@ -23,7 +23,7 @@ class LossComputeBase(nn.Module):
         self.tgt_vocab = tgt_vocab
         self.padding_idx = tgt_vocab.stoi[onmt.IO.PAD_WORD]
 
-    def make_shard_state(self, batch, output, range_, attns=None):
+    def make_shard_state(self, batch, output, range_, attns=None, kappa_attns=None):
         """
         Make shard state dictionary for shards() to return iterable
         shards for efficient loss computation. Subclass must define
@@ -48,24 +48,24 @@ class LossComputeBase(nn.Module):
         """
         return NotImplementedError
 
-    def monolithic_compute_loss(self, batch, output, kappa_output, attns):
+    def monolithic_compute_loss(self, batch, output, kappa_output, attns, kappa_attns):
         """
         Compute the loss monolithically, not dividing into shards.
         """
         range_ = (0, batch.tgt.size(0))
-        shard_state = self.make_shard_state(batch, output, kappa_output, range_, attns)
+        shard_state = self.make_shard_state(batch, output, kappa_output, range_, encoder_out, kappa_encoder_out, attns, kappa_attns)
         _, batch_stats = self.compute_loss(batch, **shard_state)
 
         return batch_stats
 
-    def sharded_compute_loss(self, batch, output, kappa_output, attns,
+    def sharded_compute_loss(self, batch, output, kappa_output, encoder_out, kappa_encoder_out, attns, kappa_attns,
                              cur_trunc, trunc_size, shard_size):
         """
         Compute the loss in shards for efficiency.
         """
         batch_stats = onmt.Statistics()
         range_ = (cur_trunc, cur_trunc + trunc_size)
-        shard_state = self.make_shard_state(batch, output, kappa_output, range_, attns)
+        shard_state = self.make_shard_state(batch, output, kappa_output, range_, encoder_out, kappa_encoder_out, attns, kappa_attns)
 
         for shard in shards(shard_state, shard_size):
             loss, stats = self.compute_loss(batch, **shard)
@@ -143,15 +143,17 @@ class NMTKappaLossCompute(LossComputeBase):
         # adjusted this to cross entropy loss
         #self.criterion = nn.CrossEntropyLoss()
 
-    def make_shard_state(self, batch, output, kappa_output, range_, attns=None):
+    def make_shard_state(self, batch, output, kappa_output, range_, encoder_out, kappa_encoder_out, attns=None, kappa_attns=None):
         """ See base class for args description. """
         return {
             "output": output,
             "kappa_output": kappa_output,
+            "encoder_out": encoder_out,
+            "kappa_encoder_out": kappa_encoder_out,
             "target": batch.tgt[range_[0] + 1: range_[1]],
         }
 
-    def compute_loss(self, batch, output, kappa_output, target):
+    def compute_loss(self, batch, output, kappa_output, target, encoder_out, kappa_encoder_out):
         """ See base class for args description. """
         # Normal output
         scores = self.generator(self.bottle(output))
@@ -174,8 +176,15 @@ class NMTKappaLossCompute(LossComputeBase):
             # we adjust the the loss to the Kappa output
             loss += self.criterion(kappa_scores, target)
             loss = loss/2
-            l2_kappa = (output - kappa_output).pow(2).mean()
-            loss += (self.kappa * l2_kappa)
+            l2_kappa_dec = (output - kappa_output).pow(2).mean()
+            l2_kappa_enc = (encoder_out - kappa_encoder_out).pow(2).mean()
+            loss += (self.kappa * l2_kappa_dec) + (self.kappa * l2_kappa_enc)
+            print('dec')
+            print(l2_kappa_dec)
+            print('enc')
+            print(l2_kappa_enc)
+            
+            o = o + 1
 
             # compute loss statistics
             stats = self.stats(loss_data, kappa_scores_data, target_data)
