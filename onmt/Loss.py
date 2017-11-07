@@ -53,7 +53,7 @@ class LossComputeBase(nn.Module):
         Compute the loss monolithically, not dividing into shards.
         """
         range_ = (0, batch.tgt.size(0))
-        shard_state = self.make_shard_state(batch, output, kappa_output, encoder_output, kappa_encoder_output, decoder_output_wod, kappa_decoder_output_wod, range_, attns)
+        shard_state = self.make_shard_state(batch, range_, output, kappa_output, encoder_output, kappa_encoder_output, decoder_output_wod, kappa_decoder_output_wod, attns)
         _, batch_stats = self.compute_loss(batch, **shard_state)
 
         return batch_stats
@@ -65,8 +65,8 @@ class LossComputeBase(nn.Module):
         batch_stats = onmt.Statistics()
 
         range_ = (cur_trunc, cur_trunc + trunc_size)
-        
-        shard_state = self.make_shard_state(batch, output, range_, kappa_output, encoder_output, kappa_encoder_output, decoder_output_wod, kappa_decoder_output_wod, attns)
+
+        shard_state = self.make_shard_state(batch, range_, output, kappa_output, encoder_output, kappa_encoder_output, decoder_output_wod, kappa_decoder_output_wod, attns)
         #print(shard_state)
         for shard in shards(shard_state, shard_size):
             loss, stats = self.compute_loss(batch, **shard)
@@ -108,7 +108,7 @@ class NMTLossCompute(LossComputeBase):
         weight[self.padding_idx] = 0
         self.criterion = nn.NLLLoss(weight, size_average=False)
 
-    def make_shard_state(self, batch, output, range_, attns=None):
+    def make_shard_state(self, batch, range_, output, attns=None):
         """ See base class for args description. """
         return {
             "output": output,
@@ -145,7 +145,7 @@ class NMTKappaLossCompute(LossComputeBase):
         # adjusted this to cross entropy loss
         #self.criterion = nn.CrossEntropyLoss()
 
-    def make_shard_state(self, batch, output, range_, kappa_output, encoder_output, kappa_encoder_output, decoder_output_wod, kappa_decoder_output_wod, attns=None):
+    def make_shard_state(self, batch, range_, output, kappa_output, encoder_output, kappa_encoder_output, decoder_output_wod, kappa_decoder_output_wod, attns=None):
         """ See base class for args description. """
         return {
             "output": output,
@@ -157,7 +157,7 @@ class NMTKappaLossCompute(LossComputeBase):
             "target": batch.tgt[range_[0] + 1: range_[1]],
         }
 
-    def compute_loss(self, batch, output, kappa_output, encoder_output, kappa_encoder_output, decoder_output_wod, kappa_decoder_output_wod, target):
+    def compute_loss(self, batch, target, output, kappa_output, encoder_output, kappa_encoder_output, decoder_output_wod, kappa_decoder_output_wod):
         """ See base class for args description. """
 
         # Normal output

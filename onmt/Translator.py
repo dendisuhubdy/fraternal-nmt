@@ -25,8 +25,7 @@ class Translator(object):
         self._type = model_opt.encoder_type
         self.copy_attn = model_opt.copy_attn
 
-        self.model = onmt.ModelConstructor.make_base_model(
-                            model_opt, self.fields, use_gpu(opt), checkpoint)
+        self.model = onmt.ModelConstructor.make_base_model(model_opt, self.fields, use_gpu(opt), checkpoint)
         self.model.eval()
         self.model.generator.eval()
 
@@ -74,7 +73,7 @@ class Translator(object):
         #  (i.e. log likelihood) of the target under the model
         tt = torch.cuda if self.opt.cuda else torch
         goldScores = tt.FloatTensor(batch.batch_size).fill_(0)
-        decOut, decStates, attn = self.model.decoder(
+        decOut, decStates, attn, decOut_wod = self.model.decoder(
             tgt_in, context, decStates)
 
         tgt_pad = self.fields["tgt"].vocab.stoi[onmt.IO.PAD_WORD]
@@ -145,8 +144,7 @@ class Translator(object):
             inp = inp.unsqueeze(2)
 
             # Run one step.
-            decOut, decStates, attn = \
-                self.model.decoder(inp, context, decStates)
+            decOut, decStates, attn, decOut_WOD = self.model.decoder(inp, context, decStates)
             decOut = decOut.squeeze(0)
             # decOut: beam x rnn_size
 
